@@ -1,5 +1,6 @@
 import * as d3 from 'd3';
 import { D3BaseSelection, Nullable } from '@/types.ts';
+import { getPixelNode } from '@/helpers/puzzle.ts';
 
 export default class Pixel {
   parent: Nullable<Pixel> = null;
@@ -13,7 +14,6 @@ export default class Pixel {
   color: Nullable<number[]> = null;
   children: Nullable<Pixel[]> = null;
   onSplitCallback;
-  biggestPixelWeight = 0;
 
   constructor(
     container: Nullable<D3BaseSelection>,
@@ -21,7 +21,6 @@ export default class Pixel {
     yi: number,
     size: number,
     color: number[],
-    pixelWeight: number,
     children?: Pixel[],
     minSizeFractions?: number,
     onSplitCallback?: (arg: number) => void
@@ -35,7 +34,6 @@ export default class Pixel {
     this.children = children || null;
     this.minSizeFractions = minSizeFractions || 16;
     this.onSplitCallback = onSplitCallback;
-    this.biggestPixelWeight = pixelWeight;
   }
 
   isSplitable() {
@@ -48,12 +46,14 @@ export default class Pixel {
 
     if (this.parent?.node) {
       this.parent?.node?.classList.add('hidden');
+      this.parent.node = null;
+      if (this.onSplitCallback) this.onSplitCallback(this.parent?.size || 0);
     }
 
     if (this.size === this.minSizeFractions) {
-      const selector = `rect[x="${this.x}"][y="${this.y}"][width="${this.size}"]`;
-      const elem = document.querySelector(selector);
-      elem?.classList.add('hidden');
+      this.node?.classList.add('hidden');
+      this.node = null;
+      if (this.onSplitCallback) this.onSplitCallback(this.size || 0);
       return;
     }
 
@@ -64,8 +64,6 @@ export default class Pixel {
     if (!this.container) return;
     // @ts-ignore
     let pixel = this.container.selectAll('.nope').data(pixels).enter().append('rect') as any;
-
-    const nodes = pixel.nodes();
 
     pixel = pixel
       .attr('x', (pixelInstance: Pixel) => {
@@ -92,8 +90,8 @@ export default class Pixel {
       .attr('height', (pixelInstance: Pixel) => pixelInstance.size)
       .attr('fill', (pixelInstance: Pixel) => String(pixelInstance.rgb))
       .attr('fill-opacity', 1)
-      .each((d: Pixel, index: number) => {
-        d.node = nodes[index];
+      .each((pixelInstance: Pixel) => {
+        pixelInstance.node = getPixelNode(pixelInstance.x, pixelInstance.y, pixelInstance.size);
       });
   }
 
@@ -121,7 +119,7 @@ export default class Pixel {
       .attr('fill', (pixelInstance: Pixel) => String(pixelInstance?.rgb))
       .attr('fill-opacity', 1)
       .each((pixelInstance: Pixel) => {
-        pixelInstance.node = document.querySelector(`rect[x="${pixelInstance.x}"][y="${pixelInstance.y}"][width="${pixelInstance.size}"]`);
+        pixelInstance.node = getPixelNode(pixelInstance.x, pixelInstance.y, pixelInstance.size);
       });
   }
 }

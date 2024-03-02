@@ -1,6 +1,6 @@
 import * as d3 from 'd3';
 import Pixel from '@/lib/Pixel.ts';
-import { getChildrenPaths, getOffset } from '@/helpers/puzzle.js';
+import { getChildrenPaths, getOffset, PUZZLE_TARGET_ELEMENTS, MAX_IMAGE_WIDTH } from '@/helpers/puzzle.js';
 import { Nullable, PuzzleImage, PixelCoords, D3BaseSelection, FractionSize } from '@/types.ts';
 
 export default class Puzzle {
@@ -25,7 +25,6 @@ export default class Puzzle {
   colorMatrix: Nullable<Uint8ClampedArray> = null;
   mapPixel: Map<string, Map<string, Pixel>> = new Map();
   bottomLayer: Map<string, Pixel> | null = null;
-  pixelWeight: number = 0;
   percentToCompletePuzzle: number = 95;
   constructor(
     maxSize: number,
@@ -38,12 +37,6 @@ export default class Puzzle {
     this.dim = this.maxSize / this.minPixelSize;
     this.imagePath = imagePath;
     this.containerSelector = containerSelector;
-    const fractions = Math.ceil(
-      window.innerWidth > 512 ? 512 / 32 : this.maxSize / 32,
-    );
-    this.pixelWeight = Math.round(
-      (this.maxSize * this.maxSize) / 4 / (fractions * fractions),
-    );
   }
 
   static isCanvasSupported() {
@@ -60,10 +53,10 @@ export default class Puzzle {
   }
 
   static getMaxImageSize() {
-    const possibleMaxSize = window.innerWidth >= 512 ?
-      window.innerHeight < 800 ? window.innerHeight - 120 > 512 ? 512 : window.innerHeight - 120 : 512 :
+    const possibleMaxSize = window.innerWidth >= MAX_IMAGE_WIDTH ?
+      window.innerHeight < 800 ? window.innerHeight - 120 > MAX_IMAGE_WIDTH ? MAX_IMAGE_WIDTH : window.innerHeight - 120 : MAX_IMAGE_WIDTH :
       window.innerWidth;
-    return possibleMaxSize >= 512 ? possibleMaxSize : possibleMaxSize % 2 === 0 ? possibleMaxSize - 6 : possibleMaxSize - 5
+    return possibleMaxSize >= MAX_IMAGE_WIDTH ? possibleMaxSize : possibleMaxSize % 2 === 0 ? possibleMaxSize - 6 : possibleMaxSize - 5
   }
 
   public loadImage() {
@@ -71,8 +64,7 @@ export default class Puzzle {
     const file = `${this.imagePath}`;
     this.image = {
       file: file,
-      shownFile:
-        location.protocol + '//' + location.host + location.pathname + file,
+      shownFile: location.protocol + '//' + location.host + location.pathname + file
     };
   }
 
@@ -119,13 +111,11 @@ export default class Puzzle {
       localSplitedThisSecond = 0;
     }, 1000);
 
-    // коллбек на очищение каждого пикселя
+    // коллбек на очищение пикселя
     const onSplitCallback = (splitedElementsCount: number) => {
       this.totalSplitedCount += splitedElementsCount;
       localSplitedThisSecond += splitedElementsCount;
-      this.percentOpened = Math.floor(
-        (this.totalSplitedCount / this.totalPixelsCount) * 100,
-      );
+      this.percentOpened = Math.floor((this.totalSplitedCount / this.totalPixelsCount) * 100);
 
       if (this.percentOpened >= this.percentToCompletePuzzle) {
         this.isComplete = true;
@@ -171,7 +161,6 @@ export default class Puzzle {
             yi,
             size,
             color,
-            this.pixelWeight,
             children,
             this.minSizeFractions,
             onSplitCallback,
@@ -179,6 +168,9 @@ export default class Puzzle {
           pixel?.children?.forEach((child) => (child.parent = pixel));
           currentLayer.set(`${xi * size}~${yi * size}`, pixel);
         }
+      }
+      if (this.minSizeFractions <= size) { // calculate the total pixels count for rendered layers
+        this.totalPixelsCount += currentLayer.size * size;
       }
       currentLayerCount++;
     }
@@ -190,6 +182,7 @@ export default class Puzzle {
   private _initializeInteraction() {
     if (!this.containerSelector) return;
     this.offset = getOffset(this.containerSelector);
+    d3.select(this.containerSelector).on('mouseout.puzzle', this._handleMouseOut.bind(this));
     d3.select(this.containerSelector).on('mousemove.puzzle', this._handleMouseMove.bind(this));
     d3.select(document.body).on('touchmove.puzzle', this._handleTouch.bind(this));
   }
@@ -227,7 +220,6 @@ export default class Puzzle {
           this.colorMatrix[t + 1],
           this.colorMatrix[t + 2],
         ];
-        this.totalPixelsCount++;
         this.bottomLayer.set(
           `${xi * size}~${yi * size}`,
           new Pixel(
@@ -236,7 +228,6 @@ export default class Puzzle {
             yi,
             size,
             color,
-            this.pixelWeight,
             undefined,
             this.minSizeFractions,
           ),
@@ -260,8 +251,14 @@ export default class Puzzle {
     event.preventDefault();
   }
 
+  private _handleMouseOut(event: MouseEvent & { toElement: HTMLElement }) {
+    if (this.isComplete) return;
+    if (PUZZLE_TARGET_ELEMENTS.includes(event.toElement.nodeName.toLowerCase())) return;
+    this.prevMousePosition = null;
+  }
+
   private _handleTouch(event: TouchEvent) {
-    if (!this.offset || this.percentOpened >= 100) return;
+    if (!this.offset || this.isComplete) return;
     const { clientX, clientY } = event.touches[0];
     const touchPosition = [
       clientX - (this.offset?.left || 0),
@@ -288,9 +285,7 @@ export default class Puzzle {
     return pixel || null;
   }
 
-  private _normalizePixelPosition(
-    position: [number, number],
-  ): [number, number] {
+  private _normalizePixelPosition(position: [number, number]): [number, number] {
     const [x, y] = position.map(Math.floor);
     return [x + (x % 2 === 0 ? 0 : 1), y + (y % 2 === 0 ? 0 : 1)];
   }
@@ -351,15 +346,10 @@ export default class Puzzle {
   }
 
   private _getAverageColor(...colorSchemes: number[][]) {
-    return colorSchemes
-      .reduce(
-        (avgColor, colorScheme) => [
-          avgColor[0] + colorScheme[0],
-          avgColor[1] + colorScheme[1],
-          avgColor[2] + colorScheme[2],
-        ],
-        [0, 0, 0],
-      )
-      .map((channelSum: number) => channelSum / colorSchemes.length);
+    return colorSchemes.reduce((avgColor, colorScheme) => [
+      avgColor[0] + colorScheme[0],
+      avgColor[1] + colorScheme[1],
+      avgColor[2] + colorScheme[2]
+    ], [0, 0, 0]).map((channelSum: number) => channelSum / colorSchemes.length);
   }
 }

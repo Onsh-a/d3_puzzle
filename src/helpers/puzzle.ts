@@ -1,3 +1,5 @@
+import { Nullable } from '@/types.ts';
+
 export function getOffset(selector: string | null) {
   if (!selector) return null;
   const element = document.querySelector(selector);
@@ -9,11 +11,7 @@ export function getOffset(selector: string | null) {
   };
 }
 
-export function getChildrenPaths(
-  currentSuze: number,
-  x: number,
-  y: number,
-): string[] {
+export function getChildrenPaths(currentSuze: number, x: number, y: number): string[] {
   const result: string[] = [];
   const step = currentSuze;
   for (let i = 0; i < 2; i++) {
@@ -25,3 +23,11 @@ export function getChildrenPaths(
   }
   return result;
 }
+
+export function getPixelNode (x: Nullable<number> = null, y: Nullable<number> = null, size:Nullable<number> = null) {
+  return document.querySelector(`rect[x="${x}"][y="${y}"][width="${size}"]`) as HTMLElement || null;
+}
+
+export const MAX_IMAGE_WIDTH = 512;
+
+export const PUZZLE_TARGET_ELEMENTS = ['svg', 'rect'];

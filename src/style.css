@@ -6,3 +6,21 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+body {
+  overflow: hidden;
+}
+
+#app {
+  overscroll-behavior: none;
+  overflow: hidden;
+  height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  #app {
+    height: 100dvh;
+    overscroll-behavior: none;
+    overflow: hidden;
+  }
+}

@@ -39,6 +39,10 @@ defineProps<{
   gap: 150px;
   margin-bottom: 12px;
 
+  @media (max-width: 768px) {
+    gap: 50px;
+  }
+
   .pointer__info {
     text-align: center;
   }

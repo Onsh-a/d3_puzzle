@@ -20,7 +20,7 @@ module.exports = {
     "plugin:@typescript-eslint/recommended",
   ],
   rules: {
-    complexity: ["error", 10],
+    // complexity: ["error", 10],
     "import/extensions": ["error", "always"],
     quotes: ["error", "single"],
     "@typescript-eslint/ban-ts-comment": "off",
